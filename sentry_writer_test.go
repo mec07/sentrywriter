@@ -31,21 +31,15 @@ func (m *mockClient) getMessages() []string {
 	m.Lock()
 	defer m.Unlock()
 
-	var messages []string
-	for _, message := range m.messages {
-		messages = append(messages, message)
-	}
+	messages := make([]string, len(m.messages))
+	copy(messages, m.messages)
 	return messages
 }
 
 func TestSentryWriterWrite(t *testing.T) {
 	client := &mockClient{}
-	writer, err := sentrywriter.New("sentry DSN number")
-	if err != nil {
-		t.Fatal("sentrywriter.New: ", err)
-	}
-	writer.SetClient(client)
-	writer.AddLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+	writer := sentrywriter.New().WithClient(client).
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
 	log := `{"level":"error","message":"blah"}`
 
@@ -65,12 +59,8 @@ func TestSentryWriterWrite(t *testing.T) {
 
 func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 	client := &mockClient{}
-	writer, err := sentrywriter.New("sentry DSN number")
-	if err != nil {
-		t.Fatal("sentrywriter.New: ", err)
-	}
-	writer.SetClient(client)
-	writer.AddLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+	writer := sentrywriter.New().WithClient(client).
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
 	log := `{"level":"info","message":"blah"}`
 
@@ -89,15 +79,11 @@ func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 
 func TestSentryWriterNonJSONError(t *testing.T) {
 	client := &mockClient{}
-	writer, err := sentrywriter.New("sentry DSN number")
-	if err != nil {
-		t.Fatal("sentrywriter.New: ", err)
-	}
-	writer.SetClient(client)
-	writer.AddLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+	writer := sentrywriter.New().WithClient(client).
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
-	log := `not valid json`
-	_, err = writer.Write([]byte(log))
+	log := `invalid json`
+	_, err := writer.Write([]byte(log))
 	if err == nil {
 		t.Fatal("expected an error")
 	}

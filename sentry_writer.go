@@ -42,45 +42,43 @@ type SentryWriter struct {
 // New returns a pointer to the SentryWriter, with the specified log levels set.
 // The SentryWriter will write logs which match any of the supplied logs to
 // Sentry. The default field that is checked for the log level is "level".
-func New(dsn string) (*SentryWriter, error) {
+func New() *SentryWriter {
 	// The sentry-go package
+	return &SentryWriter{
+		levelFieldName: "level",
+	}
+}
+
+// SetDSN sets the DSN for the Sentry client.
+func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
 	client, err := sentry.NewClient(sentry.ClientOptions{
-		Dsn: dsn,
+		Dsn: DSN,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "sentry.NewClient")
 	}
 
-	return &SentryWriter{
-		levelFieldName: "level",
-		client:         client,
-	}, nil
+	s.client = client
+	return s, nil
 }
 
-// AddLogLevel adds a LogLevel that triggers an event to be sent to Sentry.
-func (s *SentryWriter) AddLogLevel(level LogLevel) {
+// WithLogLevel adds a LogLevel that triggers an event to be sent to Sentry.
+func (s *SentryWriter) WithLogLevel(level LogLevel) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.logLevels = append(s.logLevels, level)
+	return s
 }
 
-func (s *SentryWriter) getLogLevels() []LogLevel {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	logLevels := make([]LogLevel, len(s.logLevels))
-	copy(logLevels, s.logLevels)
-	return logLevels
-}
-
-// SetLevelFieldName allows you to change the log level field name from the
+// WithLevelFieldName allows you to change the log level field name from the
 // default of "level" to whatever you are using.
-func (s *SentryWriter) SetLevelFieldName(name string) {
+func (s *SentryWriter) WithLevelFieldName(name string) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.levelFieldName = name
+	return s
 }
 
 func (s *SentryWriter) getLevelFieldName() string {
@@ -90,13 +88,14 @@ func (s *SentryWriter) getLevelFieldName() string {
 	return s.levelFieldName
 }
 
-// SetUserID sets a user ID that will be reported alongside each Sentry event.
+// WithUserID sets a user ID that will be reported alongside each Sentry event.
 // This is helpful for code that runs on client machines.
-func (s *SentryWriter) SetUserID(userID string) {
+func (s *SentryWriter) WithUserID(userID string) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Lock()
 
 	s.userID = userID
+	return s
 }
 
 func (s *SentryWriter) getUserID() string {
@@ -106,18 +105,23 @@ func (s *SentryWriter) getUserID() string {
 	return s.userID
 }
 
-// SetClient allows you to substitute the client that is being used, rather
+// WithClient allows you to substitute the client that is being used, rather
 // than the default client from the sentry-go package.
-func (s *SentryWriter) SetClient(client SentryClient) {
+func (s *SentryWriter) WithClient(client SentryClient) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.client = client
+	return s
 }
 
 // Write is the implementation of the io.Writer interface. It checks if the log
 // is at one of the preset log levels and if so it writes it to Sentry.
 func (s *SentryWriter) Write(log []byte) (int, error) {
+	if s.client == nil {
+		return 0, errors.New("no Sentry client supplied")
+	}
+
 	var eventMap map[string]json.RawMessage
 	if err := json.Unmarshal(log, &eventMap); err != nil {
 		return 0, errors.Wrap(err, "json.Unmarshal log")
