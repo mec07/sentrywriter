@@ -137,17 +137,11 @@ func (s *SentryWriter) Write(log []byte) (int, error) {
 		return len(log), nil
 	}
 
-	s.setLevel(logLevel.SentryLevel)
-	s.client.CaptureMessage(string(log), nil, s.scope)
+	scope := s.scope.Clone()
+	scope.SetLevel(logLevel.SentryLevel)
+	s.client.CaptureMessage(string(log), nil, scope)
 
 	return len(log), nil
-}
-
-func (s *SentryWriter) setLevel(level sentry.Level) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.scope.SetLevel(level)
 }
 
 func (s *SentryWriter) findMatchingLogLevel(level string) (LogLevel, bool) {
