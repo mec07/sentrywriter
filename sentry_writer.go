@@ -5,7 +5,11 @@ the io.Writer interface. This allows us to send logs from zerolog to Sentry
 mechanism to filter log levels, as you usually only want to send error level
 logs to Sentry.
 
-Example usage:
+
+Here is a typical example, using zerolog. It is important to defer the
+`sentryWriter.Flush` function because the messages are sent to Sentry
+asynchronously.
+
     package main
 
     import (
