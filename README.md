@@ -7,6 +7,9 @@ logs to Sentry.
 
 
 ## Example Usage
+Here is a typical example, using zerolog. It is important to defer the
+`sentryWriter.Flush` function because the messages are sent to Sentry
+asynchronously.
 ```
 package main
 
@@ -23,7 +26,7 @@ func main() {
 		log.Error().Err(err).Str("dsn", "your-project-sentry-dsn").Msg("sentrywriter.SentryWriter.SetDSN")
 		return
 	}
-	defer sentryWriter.Flush()
+	defer sentryWriter.Flush(2 * time.Second)
 
 	consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
 	log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, sentryWriter))
