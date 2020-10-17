@@ -34,9 +34,9 @@ type LogLevel struct {
 type SentryWriter struct {
 	mu             sync.RWMutex
 	client         SentryClient
+	scope          *sentry.Scope
 	logLevels      []LogLevel
 	levelFieldName string
-	userID         string
 }
 
 // New returns a pointer to the SentryWriter, with the specified log levels set.
@@ -46,10 +46,12 @@ func New() *SentryWriter {
 	// The sentry-go package
 	return &SentryWriter{
 		levelFieldName: "level",
+		scope:          sentry.NewScope(),
 	}
 }
 
-// SetDSN sets the DSN for the Sentry client.
+// SetDSN sets the DSN for the Sentry client. For example:
+//     writer, err := sentrywriter.New().SetDSN(dsn)
 func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
 	client, err := sentry.NewClient(sentry.ClientOptions{
 		Dsn: DSN,
@@ -62,7 +64,9 @@ func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
 	return s, nil
 }
 
-// WithLogLevel adds a LogLevel that triggers an event to be sent to Sentry.
+// WithLogLevel adds a LogLevel that triggers an event to be sent to Sentry. For
+// example:
+//     writer := sentrywriter.New().WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 func (s *SentryWriter) WithLogLevel(level LogLevel) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,7 +76,8 @@ func (s *SentryWriter) WithLogLevel(level LogLevel) *SentryWriter {
 }
 
 // WithLevelFieldName allows you to change the log level field name from the
-// default of "level" to whatever you are using.
+// default of "level" to whatever you are using. For example:
+//     writer := sentrywriter.New().WithLevelFieldName("log_level")
 func (s *SentryWriter) WithLevelFieldName(name string) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -89,24 +94,20 @@ func (s *SentryWriter) getLevelFieldName() string {
 }
 
 // WithUserID sets a user ID that will be reported alongside each Sentry event.
-// This is helpful for code that runs on client machines.
+// This is helpful for code that runs on client machines. For example:
+//     writer := sentrywriter.New().WithUserID("userID")
 func (s *SentryWriter) WithUserID(userID string) *SentryWriter {
 	s.mu.Lock()
-	defer s.mu.Lock()
+	defer s.mu.Unlock()
 
-	s.userID = userID
+	s.scope.SetUser(sentry.User{ID: userID})
 	return s
 }
 
-func (s *SentryWriter) getUserID() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.userID
-}
-
 // WithClient allows you to substitute the client that is being used, rather
-// than the default client from the sentry-go package.
+// than the default client from the sentry-go package. For example:
+//     writer := sentrywriter.New().WithClient(client)
+// where client implements the SentryClient interface.
 func (s *SentryWriter) WithClient(client SentryClient) *SentryWriter {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -136,16 +137,18 @@ func (s *SentryWriter) Write(log []byte) (int, error) {
 		return len(log), nil
 	}
 
-	scope := sentry.NewScope()
+	scope := s.getScope()
 	scope.SetLevel(logLevel.SentryLevel)
-	userID := s.getUserID()
-	if userID != "" {
-		scope.SetUser(sentry.User{ID: s.getUserID()})
-	}
-
 	s.client.CaptureMessage(string(log), nil, scope)
 
 	return len(log), nil
+}
+
+func (s *SentryWriter) getScope() *sentry.Scope {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.scope.Clone()
 }
 
 func (s *SentryWriter) findMatchingLogLevel(level string) (LogLevel, bool) {

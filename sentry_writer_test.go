@@ -38,7 +38,7 @@ func (m *mockClient) getMessages() []string {
 
 func TestSentryWriterWrite(t *testing.T) {
 	client := &mockClient{}
-	writer := sentrywriter.New().WithClient(client).
+	writer := sentrywriter.New().WithClient(client).WithUserID("userID").
 		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
 	log := `{"level":"error","message":"blah"}`
