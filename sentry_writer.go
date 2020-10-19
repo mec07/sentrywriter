@@ -6,12 +6,12 @@ Sentry (there is no dependency on zerolog in this package).
 
 There is a mechanism in this package to filter json formatted logs (we
 normally only want to send errors to Sentry, rather than all logs). For
-example, let's say you supply the writer with this:
-    errLevel := sentrywriter.LogLevel{
+example, let's say you supply the writer with this `LogLevel`:
+    errorLevel := sentrywriter.LogLevel{
     	MatchingString:"error",
     	SentryLevel: sentry.ErrorLevel,
     }
-    writer := sentrywriter.New(errLevel)
+    writer := sentrywriter.New(errorLevel)
 
 The `writer` now has filtering turned on and when it next receives a log, it
 json decodes it and checks the `"level"` field (you can change this default
@@ -20,7 +20,7 @@ it sets the sentry level to `sentry.ErrorLevel` and sends the message to
 Sentry. If no `LogLevel`s are provided then filtering is not turned on.
 Multiple `LogLevel`s can be supplied both at instantiation time and at a
 later point, for example:
-    errLevel := sentrywriter.LogLevel{
+    errorLevel := sentrywriter.LogLevel{
     	MatchingString: "error",
     	SentryLevel: sentry.ErrorLevel,
     }
@@ -28,7 +28,7 @@ later point, for example:
     	MatchingString: "fatal",
     	SentryLevel: sentry.FatalLevel,
     }
-    writer := sentrywriter.New(errLevel, fatalLevel)
+    writer := sentrywriter.New(errorLevel, fatalLevel)
 
     warningLevel := sentrywriter.LogLevel{
     	MatchingString: "warning",
@@ -49,8 +49,8 @@ asynchronously.
     )
 
     func main() {
-	    errLevel := sentrywriter.LogLevel{"error", sentry.LevelError}
-	    sentryWriter, err := sentrywriter.New(errLevel).WithUserID("userID").SetDSN("your-project-sentry-dsn")
+	    errorLevel := sentrywriter.LogLevel{"error", sentry.LevelError}
+	    sentryWriter, err := sentrywriter.New(errorLevel).WithUserID("userID").SetDSN("your-project-sentry-dsn")
 	    if err != nil {
 		    log.Error().Err(err).Str("dsn", "your-project-sentry-dsn").Msg("sentrywriter.SentryWriter.SetDSN")
 		    return
@@ -141,7 +141,10 @@ func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
 //     writer := sentrywriter.New().WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 func (s *SentryWriter) WithLogLevel(logLevel LogLevel) *SentryWriter {
 	s.addLogLevel(logLevel)
-	s.turnOnFilterLogsFlag()
+
+	if !s.shouldFilterLogs() {
+		s.turnOnFilterLogsFlag()
+	}
 
 	return s
 }
