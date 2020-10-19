@@ -183,9 +183,7 @@ func (s *SentryWriter) getLevelFieldName() string {
 // This is helpful for code that runs on client machines. For example:
 //     writer := sentrywriter.New().WithUserID("userID")
 func (s *SentryWriter) WithUserID(userID string) *SentryWriter {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	// scope has its own mutex
 	s.scope.SetUser(sentry.User{ID: userID})
 	return s
 }
@@ -258,7 +256,7 @@ func (s *SentryWriter) addBreadcrumb(log []byte) {
 	}
 
 	breadcrumb := sentry.Breadcrumb{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().UTC(),
 	}
 
 	var dataMap map[string]interface{}
@@ -283,23 +281,17 @@ func (s *SentryWriter) shouldAddBreadcrumb() bool {
 }
 
 func (s *SentryWriter) addBreadcrumbToScope(breadcrumb *sentry.Breadcrumb) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	// scope has its own mutex
 	s.scope.AddBreadcrumb(breadcrumb, s.breadcrumbsLimit)
 }
 
 func (s *SentryWriter) clearBreadcrumbs() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	// scope has its own mutex
 	s.scope.ClearBreadcrumbs()
 }
 
 func (s *SentryWriter) getScope() *sentry.Scope {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
+	// scope has its own mutex
 	return s.scope.Clone()
 }
 
