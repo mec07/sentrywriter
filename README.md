@@ -18,8 +18,7 @@ The `writer` now has filtering turned on and when it next receives a log, it
 json decodes it and checks the `"level"` field (you can change this default
 using the `WithLevelFieldName` method) matches `"error"`. If it matches then
 it sets the sentry level to `sentry.ErrorLevel` and sends the message to
-Sentry. If no `LogLevel`s are provided then filtering is not turned on.
-Multiple `LogLevel`s can be supplied both at instantiation time and at a
+Sentry. Multiple `LogLevel`s can be supplied both at instantiation time and at a
 later point, for example:
 ```
 errorLevel := sentrywriter.LogLevel{
@@ -38,6 +37,7 @@ warningLevel := sentrywriter.LogLevel{
 }
 writer.WithLogLevel(warningLevel)
 ```
+If no `LogLevel`s are provided then filtering is not turned on.
 
 ## Example Usage
 Here is a typical example, using zerolog. It is important to defer the
