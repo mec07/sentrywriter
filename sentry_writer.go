@@ -125,19 +125,30 @@ func New(logLevels ...LogLevel) *SentryWriter {
 	return &writer
 }
 
-// SetDSN sets the DSN for the Sentry client. The second argument selects
-// whether or not to add stacktraces to events. For example:
+// SetDSN creates a new Sentry client with the supplied DSN. For example:
 //     writer, err := sentrywriter.New().SetDSN(dsn, true)
-func (s *SentryWriter) SetDSN(DSN string, attachStacktrace bool) (*SentryWriter, error) {
+func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
 	client, err := sentry.NewClient(sentry.ClientOptions{
-		Dsn:              DSN,
-		AttachStacktrace: attachStacktrace,
+		Dsn: DSN,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "sentry.NewClient")
 	}
 
-	s.client = client
+	s.WithClient(client)
+	return s, nil
+}
+
+// SetClientOptions creates a new Sentry client with the supplied
+// sentry.ClientOptions. For example:
+//     writer, err := sentrywriter.New().SetClientOptions(sentry.ClientOptions{Dsn: "dsn"})
+func (s *SentryWriter) SetClientOptions(options sentry.ClientOptions) (*SentryWriter, error) {
+	client, err := sentry.NewClient(options)
+	if err != nil {
+		return nil, errors.Wrap(err, "sentry.NewClient")
+	}
+
+	s.WithClient(client)
 	return s, nil
 }
 
