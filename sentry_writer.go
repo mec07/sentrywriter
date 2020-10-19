@@ -19,8 +19,8 @@ asynchronously.
     )
 
     func main() {
-	    logLevel := sentrywriter.LogLevel{"error", sentry.LevelError}
-	    sentryWriter, err := sentrywriter.New().WithUserID("userID").WithLogLevel(logLevel).SetDSN("your-project-sentry-dsn")
+	    errLevel := sentrywriter.LogLevel{"error", sentry.LevelError}
+	    sentryWriter, err := sentrywriter.New(errLevel).WithUserID("userID").SetDSN("your-project-sentry-dsn")
 	    if err != nil {
 		    log.Error().Err(err).Str("dsn", "your-project-sentry-dsn").Msg("sentrywriter.SentryWriter.SetDSN")
 		    return
@@ -75,11 +75,12 @@ type SentryWriter struct {
 // New returns a pointer to the SentryWriter, with the specified log levels set.
 // The SentryWriter will write logs which match any of the supplied logs to
 // Sentry. The default field that is checked for the log level is "level".
-func New() *SentryWriter {
+func New(logLevels ...LogLevel) *SentryWriter {
 	// The sentry-go package
 	return &SentryWriter{
 		levelFieldName: "level",
 		scope:          sentry.NewScope(),
+		logLevels:      logLevels,
 	}
 }
 

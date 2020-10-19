@@ -20,8 +20,8 @@ import (
 )
 
 func main() {
-	logLevel := sentrywriter.LogLevel{"error", sentry.LevelError}
-	sentryWriter, err := sentrywriter.New().WithUserID("userID").WithLogLevel(logLevel).SetDSN("your-project-sentry-dsn")
+	errLevel := sentrywriter.LogLevel{"error", sentry.LevelError}
+	sentryWriter, err := sentrywriter.New(errLevel).WithUserID("userID").SetDSN("your-project-sentry-dsn")
 	if err != nil {
 		log.Error().Err(err).Str("dsn", "your-project-sentry-dsn").Msg("sentrywriter.SentryWriter.SetDSN")
 		return
