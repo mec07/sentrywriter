@@ -96,12 +96,14 @@ type LogLevel struct {
 // Sentry. It assumes that the logs are json encoded. Writes are asynchronous,
 // so remember to call Flush before exiting the program.
 type SentryWriter struct {
-	mu             sync.RWMutex
-	client         SentryClient
-	scope          *sentry.Scope
-	logLevels      []LogLevel
-	filterLogsFlag bool
-	levelFieldName string
+	mu                 sync.RWMutex
+	client             SentryClient
+	scope              *sentry.Scope
+	logLevels          []LogLevel
+	filterLogsFlag     bool
+	addBreadcrumbsFlag bool
+	breadcrumbsLimit   int
+	levelFieldName     string
 }
 
 // New returns a pointer to the SentryWriter, with the specified log levels set.
@@ -123,11 +125,13 @@ func New(logLevels ...LogLevel) *SentryWriter {
 	return &writer
 }
 
-// SetDSN sets the DSN for the Sentry client. For example:
-//     writer, err := sentrywriter.New().SetDSN(dsn)
-func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
+// SetDSN sets the DSN for the Sentry client. The second argument selects
+// whether or not to add stacktraces to events. For example:
+//     writer, err := sentrywriter.New().SetDSN(dsn, true)
+func (s *SentryWriter) SetDSN(DSN string, attachStacktrace bool) (*SentryWriter, error) {
 	client, err := sentry.NewClient(sentry.ClientOptions{
-		Dsn: DSN,
+		Dsn:              DSN,
+		AttachStacktrace: attachStacktrace,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "sentry.NewClient")
@@ -179,9 +183,7 @@ func (s *SentryWriter) getLevelFieldName() string {
 // This is helpful for code that runs on client machines. For example:
 //     writer := sentrywriter.New().WithUserID("userID")
 func (s *SentryWriter) WithUserID(userID string) *SentryWriter {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	// scope has its own mutex
 	s.scope.SetUser(sentry.User{ID: userID})
 	return s
 }
@@ -195,6 +197,21 @@ func (s *SentryWriter) WithClient(client SentryClient) *SentryWriter {
 	defer s.mu.Unlock()
 
 	s.client = client
+	return s
+}
+
+// WithBreadcrumbs turns on storing breadcrumbs. This means that all the logs
+// that would otherwise be discarded due to filtering (i.e. this feature is only
+// used if filtering of json logs with LogLevels is used) get stored as
+// breadcrumbs. The breadcrumbs are cleared as soon as a log is actually sent to
+// Sentry. For example:
+//     writer := sentrywriter.New().WithBreadcrumbs(20)
+func (s *SentryWriter) WithBreadcrumbs(limit int) *SentryWriter {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.addBreadcrumbsFlag = true
+	s.breadcrumbsLimit = limit
 	return s
 }
 
@@ -219,6 +236,7 @@ func (s *SentryWriter) Write(log []byte) (int, error) {
 
 		logLevel, found := s.findMatchingLogLevel(level)
 		if !found {
+			s.addBreadcrumb(log)
 			return len(log), nil
 		}
 
@@ -226,14 +244,54 @@ func (s *SentryWriter) Write(log []byte) (int, error) {
 	}
 
 	s.client.CaptureMessage(string(log), nil, scope)
+	// as we have captured the message, we must now clear the breadcrumbs
+	s.clearBreadcrumbs()
 
 	return len(log), nil
 }
 
-func (s *SentryWriter) getScope() *sentry.Scope {
+func (s *SentryWriter) addBreadcrumb(log []byte) {
+	if !s.shouldAddBreadcrumb() {
+		return
+	}
+
+	breadcrumb := sentry.Breadcrumb{
+		Timestamp: time.Now().UTC(),
+	}
+
+	var dataMap map[string]interface{}
+	if err := json.Unmarshal(log, &dataMap); err != nil {
+		// i.e. we can't unmarshal it, which is unexpected as these
+		// should really be json logs, but we can just set the Message
+		// field to be the raw log.
+		breadcrumb.Message = string(log)
+		s.addBreadcrumbToScope(&breadcrumb)
+		return
+	}
+
+	breadcrumb.Data = dataMap
+	s.addBreadcrumbToScope(&breadcrumb)
+}
+
+func (s *SentryWriter) shouldAddBreadcrumb() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	return s.addBreadcrumbsFlag
+}
+
+func (s *SentryWriter) addBreadcrumbToScope(breadcrumb *sentry.Breadcrumb) {
+	// scope has its own mutex
+	s.scope.AddBreadcrumb(breadcrumb, s.breadcrumbsLimit)
+}
+
+func (s *SentryWriter) clearBreadcrumbs() {
+	// scope has its own mutex
+	s.scope.ClearBreadcrumbs()
+}
+
+func (s *SentryWriter) getScope() *sentry.Scope {
+	// scope has its own mutex
 	return s.scope.Clone()
 }
 
