@@ -1,9 +1,15 @@
 /*
 Package sentrywriter is a wrapper around the sentry-go package and implements
-the io.Writer interface. This allows us to send json formatted logs from
-zerolog to Sentry (although there is no dependency on zerolog). You must
-specify the log levels you want to send to Sentry.
+the io.Writer interface. This allows us to send logs from zerolog (or some
+other logging package that accepts the io.Writer interface) and send them to
+Sentry (there is no dependency on zerolog in this package).
 
+There is a mechanism in this package to filter json formatted logs (we
+normally only want to send errors to Sentry, rather than all logs). When you
+supply a `LogLevel` to the writer, you tell it to turn on filtering and to
+check that all json formatted logs have a `"level"` field (you can change
+this default using the `WithLevelFieldName` function) and that it matches one
+of the supplied `LogLevel`s.
 
 Here is a typical example, using zerolog. It is important to defer the
 `sentryWriter.Flush` function because the messages are sent to Sentry
@@ -68,6 +74,7 @@ type SentryWriter struct {
 	client         SentryClient
 	scope          *sentry.Scope
 	logLevels      []LogLevel
+	filterLogsFlag bool
 	levelFieldName string
 }
 
@@ -77,12 +84,17 @@ type SentryWriter struct {
 // example:
 //     writer := sentrywriter.New(sentrywriter.LogLevel{"error", sentry.LevelError})
 func New(logLevels ...LogLevel) *SentryWriter {
+
 	// The sentry-go package
-	return &SentryWriter{
+	writer := SentryWriter{
 		levelFieldName: "level",
 		scope:          sentry.NewScope(),
 		logLevels:      logLevels,
 	}
+	if len(logLevels) > 0 {
+		writer.turnOnFilterLogsFlag()
+	}
+	return &writer
 }
 
 // SetDSN sets the DSN for the Sentry client. For example:
@@ -102,12 +114,18 @@ func (s *SentryWriter) SetDSN(DSN string) (*SentryWriter, error) {
 // WithLogLevel adds a LogLevel that triggers an event to be sent to Sentry. For
 // example:
 //     writer := sentrywriter.New().WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
-func (s *SentryWriter) WithLogLevel(level LogLevel) *SentryWriter {
+func (s *SentryWriter) WithLogLevel(logLevel LogLevel) *SentryWriter {
+	s.addLogLevel(logLevel)
+	s.turnOnFilterLogsFlag()
+
+	return s
+}
+
+func (s *SentryWriter) addLogLevel(logLevel LogLevel) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.logLevels = append(s.logLevels, level)
-	return s
+	s.logLevels = append(s.logLevels, logLevel)
 }
 
 // WithLevelFieldName allows you to change the log level field name from the
@@ -158,22 +176,26 @@ func (s *SentryWriter) Write(log []byte) (int, error) {
 		return 0, errors.New("no Sentry client supplied")
 	}
 
-	var eventMap map[string]json.RawMessage
-	if err := json.Unmarshal(log, &eventMap); err != nil {
-		return 0, errors.Wrap(err, "json.Unmarshal log")
-	}
-	var level string
-	if err := json.Unmarshal(eventMap[s.getLevelFieldName()], &level); err != nil {
-		return 0, errors.Wrapf(err, `json.Unmarshal eventMap["%s"]`, s.getLevelFieldName())
-	}
-
-	logLevel, found := s.findMatchingLogLevel(level)
-	if !found {
-		return len(log), nil
-	}
-
 	scope := s.getScope()
-	scope.SetLevel(logLevel.SentryLevel)
+
+	if s.shouldFilterLogs() {
+		var eventMap map[string]json.RawMessage
+		if err := json.Unmarshal(log, &eventMap); err != nil {
+			return 0, errors.Wrap(err, "json.Unmarshal log")
+		}
+		var level string
+		if err := json.Unmarshal(eventMap[s.getLevelFieldName()], &level); err != nil {
+			return 0, errors.Wrapf(err, `json.Unmarshal eventMap["%s"]`, s.getLevelFieldName())
+		}
+
+		logLevel, found := s.findMatchingLogLevel(level)
+		if !found {
+			return len(log), nil
+		}
+
+		scope.SetLevel(logLevel.SentryLevel)
+	}
+
 	s.client.CaptureMessage(string(log), nil, scope)
 
 	return len(log), nil
@@ -205,4 +227,18 @@ func (s *SentryWriter) findMatchingLogLevel(level string) (LogLevel, bool) {
 // to Sentry.
 func (s *SentryWriter) Flush(timeout time.Duration) bool {
 	return s.client.Flush(timeout)
+}
+
+func (s *SentryWriter) shouldFilterLogs() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.filterLogsFlag
+}
+
+func (s *SentryWriter) turnOnFilterLogsFlag() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.filterLogsFlag = true
 }
