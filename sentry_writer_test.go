@@ -39,7 +39,7 @@ func (m *mockClient) getMessages() []string {
 func TestSentryWriterWrite(t *testing.T) {
 	client := &mockClient{}
 	writer := sentrywriter.New(sentrywriter.LogLevel{"fatal", sentry.LevelFatal}).WithClient(client).WithUserID("userID").
-		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError}).WithBreadcrumbs(20)
 
 	log := `{"level":"error","message":"blah"}`
 
@@ -60,7 +60,7 @@ func TestSentryWriterWrite(t *testing.T) {
 func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 	client := &mockClient{}
 	writer := sentrywriter.New(sentrywriter.LogLevel{"fatal", sentry.LevelFatal}).WithClient(client).
-		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError}).WithBreadcrumbs(20)
 
 	log := `{"level":"info","message":"blah"}`
 
@@ -79,7 +79,8 @@ func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 
 func TestSentryWriterNonJSONError(t *testing.T) {
 	client := &mockClient{}
-	writer := sentrywriter.New(sentrywriter.LogLevel{"error", sentry.LevelError}).WithClient(client)
+	writer := sentrywriter.New(sentrywriter.LogLevel{"error", sentry.LevelError}).WithClient(client).
+		WithBreadcrumbs(20)
 
 	log := `invalid json`
 	_, err := writer.Write([]byte(log))
