@@ -6,7 +6,7 @@ Sentry (there is no dependency on zerolog in this package).
 
 There is a mechanism in this package to filter json formatted logs (we
 normally only want to send errors to Sentry, rather than all logs). For
-example, let's say you supply the writer with this `LogLevel`:
+example, let's say you supply the writer with a `LogLevel`:
 ```
 errorLevel := sentrywriter.LogLevel{
 	MatchingString:"error",
