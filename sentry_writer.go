@@ -1,9 +1,8 @@
 /*
 Package sentrywriter is a wrapper around the sentry-go package and implements
-the io.Writer interface. This allows us to send logs from zerolog to Sentry
-(although there is no dependency on zerolog). There is also an in-built
-mechanism to filter log levels, as you usually only want to send error level
-logs to Sentry.
+the io.Writer interface. This allows us to send json formatted logs from
+zerolog to Sentry (although there is no dependency on zerolog). You must
+specify the log levels you want to send to Sentry.
 
 
 Here is a typical example, using zerolog. It is important to defer the
@@ -74,7 +73,9 @@ type SentryWriter struct {
 
 // New returns a pointer to the SentryWriter, with the specified log levels set.
 // The SentryWriter will write logs which match any of the supplied logs to
-// Sentry. The default field that is checked for the log level is "level".
+// Sentry. The default field that is checked for the log level is "level". For
+// example:
+//     writer := sentrywriter.New(sentrywriter.LogLevel{"error", sentry.LevelError})
 func New(logLevels ...LogLevel) *SentryWriter {
 	// The sentry-go package
 	return &SentryWriter{

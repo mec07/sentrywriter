@@ -1,9 +1,8 @@
 # sentrywriter
 Package sentrywriter is a wrapper around the sentry-go package and implements
-the io.Writer interface. This allows us to send logs from zerolog to Sentry
-(although there is no dependency on zerolog). There is also an in-built
-mechanism to filter log levels, as you usually only want to send error level
-logs to Sentry.
+the io.Writer interface. This allows us to send json formatted logs from
+zerolog to Sentry (although there is no dependency on zerolog). You must
+specify the log levels you want to send to Sentry.
 
 
 ## Example Usage
