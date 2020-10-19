@@ -38,7 +38,7 @@ func (m *mockClient) getMessages() []string {
 
 func TestSentryWriterWrite(t *testing.T) {
 	client := &mockClient{}
-	writer := sentrywriter.New().WithClient(client).WithUserID("userID").
+	writer := sentrywriter.New(sentrywriter.LogLevel{"fatal", sentry.LevelFatal}).WithClient(client).WithUserID("userID").
 		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
 	log := `{"level":"error","message":"blah"}`
@@ -59,7 +59,7 @@ func TestSentryWriterWrite(t *testing.T) {
 
 func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 	client := &mockClient{}
-	writer := sentrywriter.New().WithClient(client).
+	writer := sentrywriter.New(sentrywriter.LogLevel{"fatal", sentry.LevelFatal}).WithClient(client).
 		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
 	log := `{"level":"info","message":"blah"}`
@@ -79,11 +79,32 @@ func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 
 func TestSentryWriterNonJSONError(t *testing.T) {
 	client := &mockClient{}
-	writer := sentrywriter.New().WithClient(client).
-		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+	writer := sentrywriter.New(sentrywriter.LogLevel{"error", sentry.LevelError}).WithClient(client)
 
 	log := `invalid json`
 	_, err := writer.Write([]byte(log))
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+}
+
+func TestSentryWriterNoFilterByDefault(t *testing.T) {
+	// Do not add any filters
+	client := &mockClient{}
+	writer := sentrywriter.New().WithClient(client)
+
+	log := `just a random log which isn't json formatted`
+
+	// the non-json log can get through fine
+	n, err := writer.Write([]byte(log))
+	if err != nil {
+		t.Fatalf("writer.Writer: %v", err)
+	}
+	assert.Equal(t, len(log), n)
+
+	// Now add filters
+	writer = writer.WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+	_, err = writer.Write([]byte(log))
 	if err == nil {
 		t.Fatal("expected an error")
 	}
