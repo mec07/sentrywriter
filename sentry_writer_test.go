@@ -45,7 +45,7 @@ func TestSentryWriterWrite(t *testing.T) {
 
 	n, err := writer.Write([]byte(log))
 	if err != nil {
-		t.Fatalf("writer.Writer: %v", err)
+		t.Fatalf("writer.Write: %v", err)
 	}
 	assert.Equal(t, len(log), n)
 
@@ -60,13 +60,13 @@ func TestSentryWriterWrite(t *testing.T) {
 func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 	client := &mockClient{}
 	writer := sentrywriter.New(sentrywriter.LogLevel{"fatal", sentry.LevelFatal}).WithClient(client).
-		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError}).WithBreadcrumbs(20)
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
 
 	log := `{"level":"info","message":"blah"}`
 
 	n, err := writer.Write([]byte(log))
 	if err != nil {
-		t.Fatalf("writer.Writer: %v", err)
+		t.Fatalf("writer.Write: %v", err)
 	}
 	assert.Equal(t, len(log), n)
 
@@ -75,6 +75,47 @@ func TestSentryWriterWriteFiltersLogs(t *testing.T) {
 	if len(messages) != 0 {
 		t.Fatalf("Expected 0 message, found: %d", len(messages))
 	}
+}
+
+// Although there isn't really a helpful observation to make about breadcrumbs
+// we can still ensure nothing goes terribly wrong by logging without
+// breadcrumbs turned on, then with breadcrumbs turned on.
+func TestSentryWriterBreadcrumbsPaths(t *testing.T) {
+	// Add a log before turning on breadcrumbs
+	client := &mockClient{}
+	writer := sentrywriter.New(sentrywriter.LogLevel{"fatal", sentry.LevelFatal}).WithClient(client).
+		WithLogLevel(sentrywriter.LogLevel{"error", sentry.LevelError})
+
+	log := `{"level":"info","message":"blah"}`
+
+	n, err := writer.Write([]byte(log))
+	if err != nil {
+		t.Fatalf("writer.Write: %v", err)
+	}
+	assert.Equal(t, len(log), n)
+
+	// Add a log after turning on breadcrumbs
+	writer.WithBreadcrumbs(20)
+	n, err = writer.Write([]byte(log))
+	if err != nil {
+		t.Fatalf("writer.Write: %v", err)
+	}
+	assert.Equal(t, len(log), n)
+
+	// Add final log which should send event with breadcrumb included
+	errorLog := `{"level":"error","message":"blah"}`
+	n, err = writer.Write([]byte(errorLog))
+	if err != nil {
+		t.Fatalf("writer.Write: %v", err)
+	}
+	assert.Equal(t, len(errorLog), n)
+
+	messages := client.getMessages()
+	if len(messages) != 1 {
+		t.Fatalf("Expected 1 message, found: %d", len(messages))
+	}
+	assert.Equal(t, errorLog, messages[0])
+
 }
 
 func TestSentryWriterNonJSONError(t *testing.T) {
@@ -99,7 +140,7 @@ func TestSentryWriterNoFilterByDefault(t *testing.T) {
 	// the non-json log can get through fine
 	n, err := writer.Write([]byte(log))
 	if err != nil {
-		t.Fatalf("writer.Writer: %v", err)
+		t.Fatalf("writer.Write: %v", err)
 	}
 	assert.Equal(t, len(log), n)
 
