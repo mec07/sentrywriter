@@ -61,6 +61,12 @@ asynchronously.
 	    consoleWriter := zerolog.ConsoleWriter{Out: os.Stdout}
 	    log.Logger = log.Output(zerolog.MultiLevelWriter(consoleWriter, sentryWriter))
     }
+
+More sentry options can be set by using the
+`SetClientOptions(sentry.ClientOptions)` method instead of the
+`SetDSN(string)` method. See
+https://godoc.org/github.com/getsentry/sentry-go#ClientOptions for full
+details on all the available options.
 */
 package sentrywriter
 
