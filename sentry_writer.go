@@ -299,7 +299,14 @@ func (s *SentryWriter) shouldAddBreadcrumb() bool {
 
 func (s *SentryWriter) addBreadcrumbToScope(breadcrumb *sentry.Breadcrumb) {
 	// scope has its own mutex
-	s.scope.AddBreadcrumb(breadcrumb, s.breadcrumbsLimit)
+	s.scope.AddBreadcrumb(breadcrumb, s.getBreadcrumbsLimit())
+}
+
+func (s *SentryWriter) getBreadcrumbsLimit() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.breadcrumbsLimit
 }
 
 func (s *SentryWriter) clearBreadcrumbs() {
